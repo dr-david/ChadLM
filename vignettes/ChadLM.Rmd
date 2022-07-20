@@ -1,0 +1,81 @@
+---
+title: "ChadLM"
+subtitle: "LASSO-like regression, but with publication-guaranteed effect sizes."
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{ChadLM}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(ChadLM)
+library(ggplot2)
+```
+
+# Fitting the mtcars dataset
+
+We will use the mtcars dataset. The trained eye of a Data Scientist immediately spots that $mpg$ depends on all of the variables contained in the dataset:
+
+```{r fig.dim=c(6,4.5)}
+mtcars_long <- reshape2::melt(mtcars, "mpg")
+ggplot(data=mtcars_long, aes(value, mpg)) +
+  geom_point()+
+  geom_smooth(method = "lm", se=FALSE)+
+  facet_wrap(~variable, scales = "free", nrow = 2) +
+  theme_bw()
+
+```
+
+
+We are fitting a linear model, i.e.:
+
+$$
+mpg = \beta_1 \cdot cyl + \beta_2\cdot disp + \dots + \mathcal{N}(0,\sigma^2)
+$$
+But we are worried some of the estimated $\beta_i$ might be too small :(
+
+A good solution when you're worried about the norm of a parameter vector is to apply a penalty to it. We will here penalize parameter vectors with small $l_1$ norm, i.e. the penalty has the form:
+
+$$
+-\lambda \sum_{i=1}^p |\beta_i|
+$$
+How can we choose the tuning parameter lambda? We'll try a few. Let's build a traceplot of the coefficients, to select the optimal regularization parameter.
+
+
+```{r, fig.dim=c(6,4.5)}
+yy <- mtcars$mpg
+XX <- as.matrix(mtcars[,2:11])
+
+lambdas <- seq(0,100,length.out=100)
+fitted_mods <- lapply(lambdas, function(lambda) ChadLM(yy, XX, lambda))
+fitted_mods <- Reduce(function(...) rbind(...), fitted_mods)
+
+fitted_mods <- as.data.frame(fitted_mods)
+colnames(fitted_mods) <- colnames(mtcars)[2:11]
+fitted_mods$lambda <- lambdas
+fitted_mods_long <- reshape2::melt(fitted_mods, "lambda")
+
+ggplot(data = fitted_mods_long, aes(lambda, value, color=variable)) +
+  geom_line() +
+  theme_bw()
+```
+
+Simple rule of thumb: seems like when selecting lambda, bigger is better! Here are the parameters estimates from our best model:
+
+```{r}
+fitted_mods[nrow(fitted_mods),0:10]
+```
+
+Honestly, some of those are still pathetically small. I would increase the lambda.
+
+
+
+
